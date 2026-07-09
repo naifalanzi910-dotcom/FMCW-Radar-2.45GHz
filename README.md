@@ -394,44 +394,13 @@ The velocity axis depends on the true chirp repetition period, including any idl
 SDR transmission must comply with local radio-frequency regulations.
 Accurate real-world radar operation requires hardware calibration and synchronization.
 ---
-Future Work
-Potential future improvements include:
-Multi-RX radar cube support
-Complex per-RX Range-Doppler output for MUSIC
-RX channel phase calibration
-Faster CFAR using vectorized NumPy, Numba, or C++
-Positive-range-bin display correction
-Improved range and velocity axis calibration
-Target tracking across frames
-Multi-target detection and tracking
-Real-time UAV detection experiments
-Hardware synchronization improvements
----
 Safety and Compliance
 This project is for academic and experimental radar signal-processing work. Users are responsible for ensuring that any RF transmission complies with local regulations, SDR hardware limits, bandwidth restrictions, and frequency allocation rules.
-Do not upload confidential project documents, private communications, personal IDs, restricted files, or any material that you do not have permission to publish.
 ---
 Author
 Naif Abdulkarim Alanazi  
 Electrical Engineering  
 Project: FMCW Radar 2.45 GHz Processing System
 ---
-License
-Copyright © 2026 Naif Abdulkarim Alanazi.
-All rights reserved unless a license is explicitly added.
-If this project is later intended to be open source, consider adding an open-source license such as MIT, Apache-2.0, or GPL-3.0.
 ---
-Suggested GitHub Topics
-```text
-fmcw-radar
-gnu-radio
-sdr
-usrp
-radar-signal-processing
-range-doppler
-cfar
-music-algorithm
-doa-estimation
-2.45ghz
-python
-```
+
