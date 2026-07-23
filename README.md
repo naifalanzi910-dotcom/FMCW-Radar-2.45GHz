@@ -1,406 +1,649 @@
-FMCW Radar 2.45 GHz GNU Radio
-FMCW Radar 2.45 GHz GNU Radio is a software-defined FMCW radar signal-processing project implemented using GNU Radio and Python. The project demonstrates a modular radar-processing pipeline for a 2.45 GHz FMCW radar prototype, including chirp generation, radar datacube construction, dechirping, range FFT, Doppler FFT, Range-Doppler Map visualization, 2D CFAR detection, and a MUSIC DOA framework for future multi-receiver expansion.
-This repository is intended for academic, research, and portfolio demonstration purposes in radar signal processing, software-defined radio, and GNU Radio development.
+# 2.45 GHz Software-Defined Radar Using GNU Radio and USRP B210
+
+A modular **2.45 GHz FMCW radar graduation project** developed with **GNU Radio Companion**, embedded Python blocks, and the **Ettus USRP B210**.
+
+The repository focuses on waveform generation, SDR transmission and reception, radar-cube construction, range–Doppler processing, two-dimensional CFAR detection, and a MUSIC direction-of-arrival framework for future multi-antenna development.
+
+> **Author:** Naif Abdulkarim Alanazi  
+> **Discipline:** Electrical Engineering  
+> **Project type:** Graduation Project  
+> **Main flowgraph:** `grc/Radar1.grc`
+
 ---
-Repository Name Recommendation
-Recommended GitHub repository name:
+
+## Repository Description
+
+**Suggested repository name**
+
 ```text
 FMCW-Radar-2p45GHz-GNU-Radio
 ```
-Alternative shorter name:
+
+**Suggested GitHub description**
+
 ```text
-FMCW-Radar-2p45GHz
+A 2.45 GHz GNU Radio and USRP B210 graduation project implementing chirp generation, radar-cube processing, Range–Doppler FFTs, 2D CFAR, and a future MUSIC DOA framework.
 ```
-GitHub short description:
-```text
-A 2.45 GHz SDR-based FMCW radar processing pipeline using GNU Radio, Python, Range-Doppler processing, CFAR detection, and a MUSIC DOA framework.
-```
+
 ---
-Important Clarification
-This project is for a 2.45 GHz FMCW radar, not a 77 GHz automotive radar.
-From the current code implementation, the radar receiver configuration is:
-```text
-Number of implemented RX channels = 1
-```
-This is determined from the `radar_cube_builder` block:
-```python
-in_sig=[np.complex64, np.complex64]   # tx_ref, rx0
-```
-The two input streams are:
-```text
-Input 0: TX reference signal
-Input 1: RX0 received signal
-```
-The datacube is also explicitly created as:
-```python
-cube = np.zeros((1, chirps_per_frame, samples_per_chirp), dtype=np.complex64)
-```
-Therefore, the current implementation is:
-```text
-1 TX reference stream + 1 RX channel
-```
-It is not currently a 16-RX implementation. However, the code structure can be extended later to support multiple receive channels.
+
+## Scope and Technical Basis
+
+This repository combines two clearly separated parts:
+
+1. **Software parameters and processing blocks** are taken directly from the supplied `Radar1.grc` GNU Radio Companion file.
+2. **The reference RF hardware architecture** follows the IEEE Access paper:
+
+> P. Janpangngern et al., “High-Resolution FMCW Radar for Small UAV Detection Using GNU Software-Defined Radio,” *IEEE Access*, vol. 13, 2025.  
+> DOI: [10.1109/ACCESS.2025.3570635](https://doi.org/10.1109/ACCESS.2025.3570635)
+
+The hardware values reported by that paper are included as a **reference architecture**. The paper’s reported detection results are not automatically claimed as independently reproduced by this repository.
+
 ---
-Project Overview
-The current processing chain is designed around a standard FMCW radar architecture. A complex FMCW chirp is generated and transmitted using an SDR. The received signal is captured and processed together with the transmitted reference signal to form a radar datacube.
-The main processing chain is:
+
+## GNU Radio Flowgraph
+
+![GNU Radio flowgraph](images/gnu_radio_flowgraph.png)
+
+The active flowgraph in `Radar1.grc` is:
+
 ```text
 FMCW Chirp Source
-        ↓
-SDR / USRP Transmitter
-        ↓
-SDR / USRP Receiver
-        ↓
-Radar Cube Builder
-        ↓
-Range FFT
-        ↓
-Doppler FFT
-        ↓
-Range-Doppler Map Display
-        ↓
-2D CFAR Detection
-        ↓
-CFAR Detection Display
+    ├──> UHD: USRP Sink ──> TX RF Hardware ──> TX Antenna
+    │
+    └──> TX Reference ───────────────┐
+                                     v
+UHD: USRP Source <── RX RF Hardware <── RX Antenna
+            │                        │
+            └──────────────> Radar Cube Builder
+                                      │
+                                      v
+                              Matched Filter
+                                      │
+                                      v
+                                  Range FFT
+                                      │
+                                      v
+                                 Doppler FFT
+                         ┌────────────┼─────────────┐
+                         v            v             v
+                   RDM Display     2D CFAR      MUSIC Block
+                                      │             │
+                                      v             v
+                                CFAR Display   MUSIC Display
 ```
-A MUSIC Direction-of-Arrival block is also included as a future framework, but meaningful MUSIC DOA estimation requires multiple coherent RX channels and complex per-RX phase data.
----
-Main Features
-2.45 GHz FMCW radar signal-processing pipeline
-GNU Radio custom Python blocks
-Complex baseband FMCW chirp generation
-Radar datacube construction
-FMCW dechirping using `RX × conj(TX)`
-Range FFT processing
-Doppler FFT processing
-Range-Doppler Map generation
-2D CA-CFAR target detection
-Real-time Matplotlib visualization
-Optional matched-filter processing block
-MUSIC DOA framework for future multi-RX development
-Message-based modular GNU Radio architecture
----
-Default Radar Parameters
-The current prototype uses the following default parameters:
+
+The radar-cube builder is configured with `dechirp=True`, so it forms the FMCW beat signal as:
+
 ```text
-Center frequency:       2.45 GHz
-Sample rate:            30 MS/s
-FMCW bandwidth:         25 MHz
-Samples per chirp:      900
-Chirp duration:         30 µs
-Chirps per frame:       1024
-Range FFT length:       1024
-Doppler FFT length:     2048
-Implemented RX channels: 1
+beat = RX × conj(TX reference)
 ```
-The chirp duration is:
+
+---
+
+## Exact GNU Radio Configuration
+
+The following values were read directly from `Radar1.grc`.
+
+| Parameter | Value |
+|---|---:|
+| Center frequency | 2.45 GHz |
+| Complex sample rate | 30 MS/s |
+| Chirp bandwidth | 25 MHz |
+| Samples per chirp | 900 |
+| Chirp-source amplitude | 0.7 |
+| Chirps per frame | 1024 |
+| Declared RX count | 1 |
+| Range FFT length | 1024 |
+| Doppler FFT length | 1024 |
+| USRP TX channels | 1 |
+| USRP RX channels | 1 |
+| USRP TX gain setting | 76 |
+| USRP RX gain setting | 85 |
+| USRP TX antenna port | `TX/RX` |
+| USRP RX antenna port | `RX2` |
+| USRP TX/RX bandwidth | 25 MHz |
+| Radar-cube dechirping | Enabled |
+| Matched-filter amplitude | 1.0 |
+| MUSIC source count | 1 |
+| MUSIC element spacing | 0.0612 m |
+| CFAR range training cells | 8 |
+| CFAR Doppler training cells | 8 |
+| CFAR range guard cells | 1 |
+| CFAR Doppler guard cells | 1 |
+| CFAR false-alarm probability | 1 × 10⁻⁶ |
+| Display update interval | Every message |
+
+> The variable `rx = 1` is present in the flowgraph. More importantly, the `radar_cube_builder` code explicitly creates a cube with one receive dimension, so the implemented system is physically and computationally single-RX.
+
+---
+
+## Derived Values From the GRC Parameters
+
+Using the exact values in `Radar1.grc`:
+
+### Chirp duration
+
 ```text
 Tc = samples_per_chirp / sample_rate
-Tc = 900 / 30e6
+Tc = 900 / 30,000,000
 Tc = 30 µs
 ```
-The FMCW chirp slope is:
+
+### Chirp slope
+
 ```text
 S = bandwidth / Tc
-S = 25e6 / 30e-6
-S = 8.33 × 10^11 Hz/s
+S = 25 × 10^6 / 30 × 10^-6
+S ≈ 8.333 × 10^11 Hz/s
 ```
-The theoretical range resolution is:
-```text
-ΔR = c / (2B)
-ΔR = 3e8 / (2 × 25e6)
-ΔR = 6 m
-```
-The wavelength at 2.45 GHz is:
+
+### Wavelength at 2.45 GHz
+
 ```text
 λ = c / fc
-λ = 3e8 / 2.45e9
-λ ≈ 0.1224 m
+λ ≈ 0.12236 m
+λ ≈ 122.36 mm
 ```
-If chirps are transmitted continuously with no idle time, the chirp repetition period is approximately:
+
+### Half-wavelength spacing
+
 ```text
+d = λ / 2
+d ≈ 0.06118 m
+d ≈ 61.18 mm
+```
+
+The configured MUSIC spacing of `0.0612 m` is therefore approximately half a wavelength at 2.45 GHz.
+
+### Theoretical range resolution
+
+```text
+ΔR = c / (2B)
+ΔR ≈ 5.996 m
+```
+
+This is the physical range resolution determined by the 25 MHz bandwidth. Increasing the FFT length by zero-padding can interpolate the display but does not improve the physical resolution.
+
+### Nominal chirp repetition frequency
+
+The present flowgraph continuously repeats 900-sample chirps and specifies no idle interval:
+
+```text
+PRF ≈ 1 / Tc
+PRF ≈ 33.333 kHz
+```
+
+### Frame or coherent-processing duration
+
+```text
+Tframe = 1024 × 30 µs
+Tframe = 30.72 ms
+```
+
+### Nominal velocity quantities
+
+Assuming the actual chirp repetition interval is exactly 30 µs:
+
+```text
+Maximum unambiguous radial velocity ≈ ±1019.7 m/s
+Velocity-bin spacing ≈ 1.99 m/s
+```
+
+These are software-model values. Real velocity calibration must use the measured chirp repetition interval, including UHD buffering, USB transfer behavior, scheduling, and any idle time.
+
+### Beat-frequency range limit
+
+Using a positive complex-baseband beat-frequency limit of `Fs/2`:
+
+```text
+Theoretical beat-frequency-limited range ≈ 2.70 km
+```
+
+This is not a claimed detection range. Practical range is limited by antenna gain, transmit power, receiver noise, target RCS, leakage, clutter, calibration, and regulatory constraints.
+
+---
+
+## Reference Hardware Architecture From the IEEE Paper
+
+The paper’s RF architecture is used here as the project’s hardware reference.
+
+### Core SDR
+
+- **Ettus USRP B210**
+- Full-duplex transmit and receive operation
+- Integrated ADC, DAC, FPGA, mixers, and local oscillator
+- USB 3.0 connection
+- UHD interface to GNU Radio
+
+### Transmitting RF chain
+
+```text
+USRP B210 TX
+    -> Driver / Two-Stage Power Amplifier
+    -> Vivaldi-Fed Parabolic Reflector TX Antenna
+```
+
+Reference values reported in the paper:
+
+- Final transmit power: approximately **50 dBm**
+- Equivalent transmit power: approximately **100 W**
+- Separate high-gain directional transmitting antenna
+- Antenna type: **Vivaldi feed combined with a parabolic reflector**
+
+### Receiving RF chain
+
+```text
+Vivaldi-Fed Parabolic Reflector RX Antenna
+    -> Low-Noise Amplifier and Band-Pass Filter
+    -> USRP B210 RX
+```
+
+Reference receiver components:
+
+- LNA: **Mini-Circuits ZX60-83LN-S+**
+- LNA gain: approximately **20 dB**
+- LNA noise figure: approximately **1.4 dB**
+- BPF: **Mini-Circuits VBFZ-2575-S+**
+- Separate high-gain directional receiving antenna
+
+### Vivaldi-fed parabolic antenna
+
+At 2.45 GHz, the paper reports:
+
+| Antenna characteristic | Reported value |
+|---|---:|
+| Simulated gain | 17.6 dBi |
+| Measured gain | 17.3 dBi |
+| Measured H-plane HPBW | 13.0° |
+| Measured E-plane HPBW | 12.8° |
+| Operating range used for antenna evaluation | 2–6 GHz |
+| Return loss | approximately `S11 ≤ -10 dB` |
+
+The Vivaldi element acts as the feed, while the parabolic reflector focuses the transmitted or received electromagnetic energy into a narrow directional beam.
+
+### Reference processing computer
+
+The paper reports:
+
+- **LattePanda Sigma**
+- Intel **Core i5-1340P**
+- **32 GB RAM**
+- NVIDIA **Quadro K6000**
+- **12 GB GPU memory**
+- Ubuntu 22.04
+- GNU Radio and `gr-plasma`
+- ArrayFire with CUDA, OpenCL, or CPU execution
+
+### Important timing difference
+
+The IEEE paper describes a 30 µs LFM pulse with a 50 µs pulse-repetition interval, leaving a 20 µs listening period. The current `Radar1.grc` file continuously repeats a 30 µs chirp and sets the display chirp period to 30 µs.
+
+Therefore, the paper’s hardware timing and the present GNU Radio timing are not identical. The current repository documents the supplied GRC values exactly and treats the paper as the RF-hardware reference.
+
+---
+
+## Embedded Python Blocks
+
+### `fmcw_chirp_src`
+
+Generates a repeated complex-baseband chirp:
+
+```text
+s(t) = A exp(jπSt²)
+```
+
+Current values:
+
+```text
+A = 0.7
+S = 8.333 × 10^11 Hz/s
 Tc = 30 µs
 ```
-and the approximate maximum unambiguous radial velocity is:
-```text
-Vmax = λ / (4Tc)
-Vmax ≈ 1020 m/s
-```
+
+#### Sampling note
+
+The current code generates an instantaneous baseband frequency that increases approximately from 0 to 25 MHz. At a 30 MS/s complex sample rate, the Nyquist interval is approximately −15 to +15 MHz.
+
+The portion above +15 MHz aliases. A future revision should either:
+
+- center the chirp approximately from −12.5 to +12.5 MHz, or
+- increase the sample rate to more than 50 MS/s, subject to hardware limits.
+
 ---
-GNU Radio Blocks
-1. `fmcw_chirp_src`
-Generates the transmitted FMCW chirp signal as a complex baseband waveform.
-The basic chirp signal is:
+
+### `radar_cube_builder`
+
+Inputs:
+
 ```text
-s(t) = A · exp(jπkt²)
+Input 0: TX reference
+Input 1: RX0 signal
 ```
-where:
+
+Current cube shape:
+
 ```text
-A = amplitude
-k = chirp slope
+(1, 1024, 900)
 ```
-The block continuously repeats the chirp and outputs a `complex64` stream that can be connected to an SDR sink.
-Important note: With a 30 MS/s sample rate and 25 MHz bandwidth, a centered chirp from `-12.5 MHz` to `+12.5 MHz` is safer than a chirp from `0 MHz` to `+25 MHz`, because the complex baseband Nyquist range is approximately `-15 MHz` to `+15 MHz`.
----
-2. `radar_cube_builder`
-Builds the radar datacube from the transmitted reference signal and the received signal.
-Current inputs:
-```text
-Input 0: tx_ref
-Input 1: rx0
-```
-Current output datacube shape:
-```text
-(1, chirps_per_frame, samples_per_chirp)
-```
-Axis meaning:
+
+Axis interpretation:
+
 ```text
 Axis 0: RX channel
-Axis 1: Chirp index / slow time
-Axis 2: Sample index inside chirp / fast time
+Axis 1: chirp index / slow time
+Axis 2: sample index / fast time
 ```
-When dechirping is enabled, the block computes:
+
+With dechirping enabled:
+
 ```text
-beat signal = RX × conj(TX)
+cube[0] = RX0 × conj(TX reference)
 ```
-This produces the FMCW beat signal used for range estimation.
+
 ---
-3. `range_fft_block`
-Performs range processing by applying a Hanning window and an FFT along the fast-time dimension.
-Input shape:
-```text
-(num_rx, chirps_per_frame, samples_per_chirp)
-```
-Output shape:
-```text
-(num_rx, chirps_per_frame, range_fft_len)
-```
-For the current implementation:
-```text
-Input shape:  (1, 1024, 900)
-Output shape: (1, 1024, 1024)
-```
-This block converts the dechirped beat signal into range-frequency bins.
----
-4. `doppler_fft_block`
-Performs Doppler processing by applying a Hanning window and an FFT across the chirp dimension.
-Input shape:
-```text
-(num_rx, chirps_per_frame, range_fft_len)
-```
-Output Range-Doppler Map shape:
-```text
-(range_fft_len, doppler_fft_len)
-```
-For the current implementation:
-```text
-RDM shape: (1024, 2048)
-```
-The Doppler FFT uses `fftshift`, so zero velocity appears at the center of the Doppler axis.
-Important MUSIC note: The current `rdm_per_rx` output is magnitude-only. MUSIC DOA requires complex per-RX range-Doppler data, so this output must be modified in the future for real DOA estimation.
----
-5. `cfar2d_block`
-Applies a 2D Cell-Averaging Constant False Alarm Rate detector to the Range-Doppler Map.
-The output is a binary detection map:
-```text
-0 = no detection
-1 = target detection
-```
-The CFAR detector estimates the local noise level using training cells while excluding guard cells around the cell under test.
-Default CFAR parameters:
-```text
-Training cells in range:    8
-Training cells in Doppler:  8
-Guard cells in range:       1
-Guard cells in Doppler:     1
-Probability of false alarm: 1e-6
-```
-With these values, the CFAR window size is:
-```text
-19 × 19 cells
-```
-and the number of training cells is:
-```text
-352 training cells
-```
----
-6. `rdm_display_block`
-Displays the Range-Doppler Map using physical axes:
-```text
-x-axis: velocity in m/s
-y-axis: range in meters
-```
-The block converts the normalized RDM to dB scale for visualization.
-Recommended correction: If the input RDM is already power, use:
-```python
-arr_db = 10.0 * np.log10(np.maximum(arr, 1e-12))
-```
-Use `20log10` only for amplitude or magnitude data.
----
-7. `cfar_display_block`
-Displays the binary CFAR detection map using physical axes:
-```text
-x-axis: velocity in m/s
-y-axis: range in meters
-```
-Detected targets appear as binary points in the Range-Doppler plane.
----
-8. `music_doa_block`
-Provides a MUSIC Direction-of-Arrival estimation framework.
-The MUSIC algorithm estimates the target angle by using phase differences between multiple coherent receive antennas.
-Current limitation: The present radar cube contains only one RX channel. Therefore, MUSIC DOA estimation is not physically meaningful in the current one-RX implementation.
-For meaningful MUSIC DOA estimation, the system needs:
-```text
-1. At least two coherent RX channels
-2. Known RX antenna spacing
-3. Complex per-RX range-Doppler data
-4. RX phase calibration
-```
-The current MUSIC block should be treated as a placeholder or future extension until multi-RX support is implemented.
----
-9. `music_display_block`
-Displays the MUSIC spatial spectrum as a function of angle.
-The peak of the MUSIC spectrum corresponds to the estimated direction of arrival. In the current one-RX system, this plot is expected to be flat or non-meaningful because angle estimation requires multiple RX channels.
----
-10. `matched_filter_block`
-Applies matched-filter pulse compression along the fast-time dimension.
-The matched filter is created as the time-reversed complex conjugate of the transmitted chirp:
+
+### `matched_filter_block`
+
+The block generates the reference chirp internally and applies the time-reversed complex conjugate:
+
 ```text
 h(t) = s*(-t)
 ```
-This block is useful when processing raw received chirps.
-Important processing note: If `radar_cube_builder` is already using `dechirp=True`, the matched-filter block should normally not be inserted after it. Use either:
+
+The current flowgraph applies this matched filter after the radar cube has already been dechirped.
+
+#### Processing-method warning
+
+Two common valid approaches are:
+
+**Conventional FMCW**
+
 ```text
-Standard FMCW chain:
-Dechirp → Range FFT → Doppler FFT
+Dechirp -> Range FFT -> Doppler FFT
 ```
-or:
+
+**Pulsed-LFM**
+
 ```text
-Matched-filter chain:
-Raw RX chirps → Matched filter → further processing
+Raw RX pulses -> Matched filter -> Range/Doppler processing
 ```
-Do not unintentionally combine both methods in a way that distorts the radar signal.
+
+The current experimental flowgraph contains both dechirping and matched filtering. This should be evaluated carefully and normally refactored so that one consistent range-processing method is selected.
+
 ---
-Recommended Repository Structure
-```text
-FMCW-Radar-2p45GHz-GNU-Radio/
-│
-├── README.md
-├── LICENSE
-├── .gitignore
-│
-├── grc/
-│   └── fmcw_radar_2p45ghz.grc
-│
-├── blocks/
-│   ├── fmcw_chirp_src.py
-│   ├── radar_cube_builder.py
-│   ├── range_fft_block.py
-│   ├── doppler_fft_block.py
-│   ├── cfar2d_block.py
-│   ├── rdm_display_block.py
-│   ├── cfar_display_block.py
-│   ├── music_doa_block.py
-│   ├── music_display_block.py
-│   └── matched_filter_block.py
-│
-├── docs/
-│   ├── architecture.md
-│   └── processing_chain.md
-│
-├── images/
-│   └── flowgraph.png
-│
-└── examples/
-    └── example_parameters.md
-```
----
-Installation
-Install the required Python packages:
-```bash
-pip install numpy matplotlib
-```
-GNU Radio must also be installed on the system.
-For SDR operation, install the required hardware drivers for your SDR platform. For USRP devices, UHD must be installed and configured.
----
-Usage
-Clone the repository:
-```bash
-git clone https://github.com/your-username/FMCW-Radar-2p45GHz-GNU-Radio.git
-cd FMCW-Radar-2p45GHz-GNU-Radio
-```
-Open the GNU Radio Companion flowgraph:
-```bash
-gnuradio-companion grc/fmcw_radar_2p45ghz.grc
-```
-Add or load the custom Python blocks.
-Configure the radar parameters:
-```text
-sample_rate
-center_freq
-bandwidth
-samples_per_chirp
-chirps_per_frame
-range_fft_len
-doppler_fft_len
-```
-Run the flowgraph.
----
-Processing Notes
-Range Processing
-The range FFT is applied along the fast-time samples of each chirp. In FMCW radar, the beat frequency is related to target range by:
+
+### `range_fft_block`
+
+- Applies a Hanning window along fast time
+- Performs a 1024-point FFT
+- Converts `(1, 1024, 900)` into `(1, 1024, 1024)`
+
+For conventional FMCW processing:
+
 ```text
 R = c fb / (2S)
 ```
-where:
-```text
-R  = target range
-c  = speed of light
-fb = beat frequency
-S  = FMCW chirp slope
-```
----
-Doppler Processing
-The Doppler FFT is applied along the slow-time chirp dimension. Doppler information appears as phase variation from chirp to chirp.
-The Doppler frequency is related to radial velocity by:
-```text
-v = fd λ / 2
-```
-where:
-```text
-v  = radial velocity
-fd = Doppler frequency
-λ  = wavelength
-```
----
-CFAR Detection
-The CFAR detector applies an adaptive threshold to the Range-Doppler Map. It estimates the local noise level using surrounding training cells and excludes guard cells around the cell under test to avoid target-energy leakage into the noise estimate.
----
-MUSIC DOA
-MUSIC DOA is included as a future extension. In the current code, the system has only one RX channel, so DOA estimation is not physically valid.
-To make MUSIC meaningful, future versions should modify the pipeline to output complex per-RX range-Doppler data with shape:
-```text
-(num_rx, range_bins, doppler_bins)
-```
-where `num_rx >= 2`.
----
-Current Limitations
-The current implementation has one RX channel.
-MUSIC DOA is included only as a future framework.
-MUSIC requires complex multi-RX data, but the current `rdm_per_rx` output is magnitude-only.
-Python-based 2D CFAR may be slow for large real-time Range-Doppler Maps.
-The range axis in display blocks should be calibrated carefully when zero-padding is used.
-The velocity axis depends on the true chirp repetition period, including any idle time.
-SDR transmission must comply with local radio-frequency regulations.
-Accurate real-world radar operation requires hardware calibration and synchronization.
----
-Safety and Compliance
-This project is for academic and experimental radar signal-processing work. Users are responsible for ensuring that any RF transmission complies with local regulations, SDR hardware limits, bandwidth restrictions, and frequency allocation rules.
----
-Author
-Naif Abdulkarim Alanazi  
-Electrical Engineering  
-Project: FMCW Radar 2.45 GHz Processing System
----
+
 ---
 
+### `doppler_fft_block`
+
+- Applies a Hanning window across 1024 chirps
+- Performs a 1024-point Doppler FFT
+- Applies `fftshift`
+- Produces a normalized power Range–Doppler Map with shape:
+
+```text
+(1024 range bins, 1024 Doppler bins)
+```
+
+The block also publishes `rdm_per_rx`, but it converts each channel to magnitude-only `float32` data before publishing.
+
+---
+
+### `cfar2d_block`
+
+Implements two-dimensional cell-averaging CFAR.
+
+Current window:
+
+```text
+Total window: 19 × 19 cells
+Guard region: 3 × 3 cells
+Training cells: 352
+Pfa: 1 × 10^-6
+Threshold multiplier α ≈ 14.09
+```
+
+The block is implemented with nested Python loops over a 1024 × 1024 map, so optimization may be required for sustained real-time operation.
+
+---
+
+### Display blocks
+
+The Range–Doppler display plots:
+
+- horizontal axis: radial velocity
+- vertical axis: range
+
+The CFAR display plots the binary detection map in the same range–velocity plane.
+
+#### Range-axis note
+
+The current display code assigns `c/(2B)` to every FFT bin. This treats each bin as approximately 6 m even though the 1024-point FFT zero-pads 900 samples and includes both positive and negative frequency bins.
+
+A corrected physical range axis should use the chirp slope, sample rate, FFT frequency bins, positive-beat-frequency selection, and measured range-offset calibration.
+
+#### dB conversion note
+
+The Doppler block publishes normalized power. A power map should normally be converted using:
+
+```python
+10.0 * np.log10(power)
+```
+
+The current display uses `20log10`, which is appropriate for amplitude rather than power.
+
+---
+
+## MUSIC Direction-of-Arrival Limitation
+
+### Current hardware and software condition
+
+```text
+Physical receiving antennas: 1
+Implemented RX channels: 1
+Radar-cube receive dimension: 1
+```
+
+The two streams entering the radar-cube builder are not two receiving antennas:
+
+```text
+Stream 0 = TX reference
+Stream 1 = RX0
+```
+
+### Effect on MUSIC results
+
+MUSIC requires spatial phase differences measured by multiple coherent receiving antennas. With one receiving antenna:
+
+- no inter-element phase difference exists;
+- a spatial covariance matrix cannot be formed correctly;
+- a physical direction of arrival cannot be estimated;
+- any displayed MUSIC angle must not be interpreted as a valid target direction.
+
+The current code recognizes this condition. When `num_rx < 2`, it publishes a flat zero spectrum. Therefore, the MUSIC blocks are included as a **future multi-RX framework**, not as a validated one-antenna DOA solution.
+
+### Additional MUSIC limitation
+
+The Doppler block currently publishes `rdm_per_rx` as magnitude-only real data:
+
+```text
+float32 magnitude per RX
+```
+
+MUSIC requires complex per-channel data to preserve phase. Even after adding multiple receiving antennas, the pipeline must be changed to retain:
+
+```text
+complex[num_rx, range_bins, Doppler_bins]
+```
+
+### Future array configuration
+
+At 2.45 GHz, a possible uniform linear array can use approximately:
+
+```text
+61.2 mm element spacing
+```
+
+A valid future MUSIC implementation should include:
+
+- at least two coherent RX channels;
+- preferably four or more receiving elements;
+- known array geometry;
+- complex per-RX data;
+- phase and gain calibration;
+- multiple snapshots for covariance estimation;
+- mutual-coupling and cable-delay compensation.
+
+---
+
+## Current Capabilities
+
+| Function | Status |
+|---|---|
+| 2.45 GHz chirp generation | Implemented |
+| USRP TX and RX integration | Configured |
+| TX-reference capture | Implemented |
+| Single-RX radar-cube formation | Implemented |
+| FMCW dechirping | Implemented |
+| Matched-filter experiment | Implemented |
+| Range FFT | Implemented |
+| Doppler FFT | Implemented |
+| Range–Doppler visualization | Implemented |
+| 2D CA-CFAR | Implemented |
+| MUSIC software framework | Included |
+| Valid one-antenna MUSIC angle | Not possible |
+| Multi-channel calibrated DOA | Future work |
+
+---
+
+## Known Limitations and Recommended Improvements
+
+1. **One RX antenna:** prevents valid MUSIC direction-of-arrival estimation.
+2. **Magnitude-only MUSIC input:** removes the inter-channel phase required by MUSIC.
+3. **Chirp aliasing:** the current 0-to-25 MHz baseband chirp exceeds the ±15 MHz Nyquist interval of a 30 MS/s complex stream.
+4. **Mixed processing methods:** dechirping and matched filtering are both active.
+5. **Range-axis calibration:** the display axis needs frequency-bin-based mapping and range-offset correction.
+6. **Velocity-axis calibration:** the actual chirp repetition interval must be measured.
+7. **USRP timing:** TX and RX latency, buffering, and sample alignment require calibration.
+8. **Direct-path leakage:** separate high-gain TX and RX antennas still require adequate isolation.
+9. **CFAR performance:** nested Python loops may not sustain the intended frame rate.
+10. **Gain settings:** TX gain 76 and RX gain 85 must be tuned to avoid compression, clipping, or excessive noise.
+11. **Hardware validation:** reference-paper component values should be verified against the actual installed RF chain.
+12. **Regulatory compliance:** 2.45 GHz transmission power and occupied bandwidth must comply with local rules.
+
+---
+
+## Installation
+
+Install GNU Radio, UHD, NumPy, and Matplotlib.
+
+Example Python dependencies:
+
+```bash
+python -m pip install numpy matplotlib pyyaml
+```
+
+Check the USRP connection:
+
+```bash
+uhd_find_devices
+uhd_usrp_probe
+```
+
+Open the flowgraph:
+
+```bash
+gnuradio-companion grc/Radar1.grc
+```
+
+---
+
+## Safe Testing Procedure
+
+Begin with a conducted loopback test:
+
+```text
+USRP TX -> suitable attenuator chain -> USRP RX
+```
+
+Never connect a power amplifier directly to a USRP receiver. Confirm attenuation, maximum input level, impedance matching, and isolation before enabling transmission.
+
+For over-the-air testing:
+
+- begin at low power;
+- use a legal test frequency and power;
+- verify antenna alignment;
+- monitor PA temperature;
+- protect the RX input from TX leakage;
+- calibrate the zero-range offset;
+- validate results with targets at known distances and speeds.
+
+---
+
+## Future Work
+
+- Center the transmitted chirp within the complex Nyquist interval
+- Select and validate one range-processing method
+- Correct the physical range and velocity axes
+- Add fixed-delay and leakage calibration
+- Optimize CFAR computation
+- Add target clustering and tracking
+- Add two or more coherent receiving channels
+- Build a calibrated uniform linear array
+- Preserve complex per-RX Range–Doppler data
+- Validate MUSIC with controlled-angle measurements
+- Compare experimental results with the IEEE reference architecture
+
+---
+
+## Safety and Compliance
+
+The reference paper includes a 50 dBm, 100 W transmit chain. This power level can damage equipment, create hazardous RF exposure, and violate radio regulations when used without authorization.
+
+Users are responsible for compliance with:
+
+- national spectrum regulations;
+- permitted ISM-band power and bandwidth;
+- RF exposure limits;
+- amplifier and antenna ratings;
+- filtering and spectral-mask requirements;
+- safe laboratory procedures.
+
+---
+
+## Academic Purpose
+
+This repository documents my Electrical Engineering graduation project and demonstrates practical work in:
+
+- GNU Radio Companion
+- embedded Python signal-processing blocks
+- software-defined radio
+- FMCW/LFM radar waveforms
+- USRP hardware integration
+- radar datacubes
+- range and Doppler FFT processing
+- two-dimensional CFAR
+- MUSIC DOA requirements and limitations
+- RF front-end architecture
+- engineering validation and calibration
+
+---
+
+## Author
+
+**Naif Abdulkarim Alanazi**  
+Electrical Engineering Graduate  
+Graduation Project: **2.45 GHz Software-Defined Radar Using GNU Radio and USRP B210**
